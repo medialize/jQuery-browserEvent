@@ -1,10 +1,10 @@
 <!DOCTYPE html>
-<html xmlns="http://www.w3.org/1999/xhtml" xmlns:og="http://opengraphprotocol.org/schema/" xml:lang="de" lang="de">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="de" lang="de">
 <head>
 	<meta charset="utf-8" />
 	<meta http-equiv="content-type" content="text/html; charset=utf-8" />
 
-	<title>browserEvent() jQuery plugin</title>
+	<title>$.browserEvent() jQuery plugin</title>
 	<meta name="title" content="windowSync() jQuery plugin" />
 	<meta name="description" content="Keeping data in multiple browser windows in sync." />
 	
@@ -40,7 +40,7 @@
 				log( 'Registered Windows Changed: ' + data.join( ', ' ), 'event' );
 			});
 			
-			$.browserEvent.init();
+			$.browserEvent.init( $.storage, $.storageWindow );
 			
 			
 			$.browserEvent.bind( 'someLaterEvent', function( e, data )
@@ -61,8 +61,11 @@
 		<button onclick="send(); return false;" type="button">send</button>
 	</div>
 	<script type="text/javascript">
-		document.write( '<p class="info">Initialized $.store() with driver ' + $.store.driver.ident + '</p>' );
+		document.write( '<p>Initialized <code>$.storage</code> with driver <code>' + $.storage.driver.ident + '</code></p>' );
 	</script>
+	
+	
+	<h1>how to test:</h1>
 	
 	<p class="info">
 		Open this page in two browser windows. Align the windows so you can see them simultaneously.

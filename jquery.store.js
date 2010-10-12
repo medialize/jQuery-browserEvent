@@ -2,19 +2,30 @@
  * jQuery store - Plugin for persistent data storage using localStorage, userData (and window.name)
  * 
  * Authors: Rodney Rehm
- * Documentation: http://code.medialize.de/jQuery/store/
+ * Web: http://medialize.github.com/jQuery-store/
  * 
  * Licensed under the MIT License:
  *   http://www.opensource.org/licenses/mit-license.php
  *
  */
 
-/*
+/**********************************************************************************
+ * INITIALIZE EXAMPLES:
+ **********************************************************************************
+ * 	// automatically detect best suited storage driver and use default serializers
+ *	$.storage = new $.store();
+ *	// optionally initialize with specific driver and or serializers
+ *	$.storage = new $.store( [driver] [, serializers] );
+ *		driver		can be the key (e.g. "windowName") or the driver-object itself
+ *		serializers	can be a list of named serializers like $.store.serializers
+ **********************************************************************************
  * USAGE EXAMPLES:
- *	$.store( key ) and $.store.get( key ) retrieve a value
- *	$.store( key, value ) and $.store.set( key, value ) save a value
- *	$.store.del( key ) deletes a value
- *	$.store.flush() deletes aall values
+ **********************************************************************************
+ *	$.storage.get( key );			// retrieves a value
+ *	$.storage.set( key, value );	// saves a value
+ *	$.storage.del( key );			// deletes a value
+ *	$.storage.flush();				// deletes aall values
+ **********************************************************************************
  */
 
 (function($,undefined){
@@ -23,12 +34,62 @@
  * $.store base and convinience accessor
  **********************************************************************************/
 
-$.store = function( key, value )
+$.store = function( driver, serializers )
 {
-	if( value == undefined )
-		return $.store.get( key );
+	var that = this;
+	
+	if( typeof driver == 'string' )
+	{
+		if( $.store.drivers[ driver ] )
+			this.driver = $.store.drivers[ driver ];
+		else
+			throw new Error( 'Unknown driver '+ driver );
+	}
+	else if( typeof driver == 'object' )
+	{
+		var invalidAPI = !$.isFunction( driver.init )
+			|| !$.isFunction( driver.get )
+			|| !$.isFunction( driver.set )
+			|| !$.isFunction( driver.del )
+			|| !$.isFunction( driver.flush );
+			
+		if( invalidAPI )
+			throw new Error( 'The specified driver does not fulfill the API requirements' );
+		
+		this.driver = driver;
+	}
 	else
-		$.store.set( key, value );
+	{
+		// detect and initialize storage driver
+		$.each( $.store.drivers, function()
+		{
+			// skip unavailable drivers
+			if( !$.isFunction( this.available ) || !this.available() )
+				return true; // continue;
+			
+			that.driver = this;
+			return false; // break;
+		});
+	}
+	
+	// initialize driver
+	this.driver.init();
+	
+	// use default serializers if not told otherwise
+	if( !serializers )
+		serializers = $.store.serializers;
+	
+	// intialize serializers
+	this.serializers = {};
+	$.each( serializers, function( key, serializer )
+	{
+		// skip invalid processors
+		if( !$.isFunction( this.init ) )
+			return true; // continue;
+		
+		that.serializers[ key ] = this;
+		that.serializers[ key ].init( that.encoders, that.decoders );
+	});
 };
 
 
@@ -36,15 +97,15 @@ $.store = function( key, value )
  * $.store API
  **********************************************************************************/
 
-$.extend( $.store, {
+$.extend( $.store.prototype, {
 	get: function( key )
 	{
 		var value = this.driver.get( key );
-		return this.unserialize( value );
+		return this.driver.encodes ? value : this.unserialize( value );
 	},
 	set: function( key, value )
 	{
-		this.driver.set( key, this.serialize( value ) );
+		this.driver.set( key, this.driver.encodes ? value : this.serialize( value ) );
 	},
 	del: function( key )
 	{
@@ -55,35 +116,15 @@ $.extend( $.store, {
 		this.driver.flush();
 	},
 	driver : undefined,
-	init: function()
-	{
-		// intialize serializers
-		$.each( $.store.serializers, function()
-		{
-			// skip invalid processors
-			if( !$.isFunction( this.init ) )
-				return true; // continue;
-			
-			this.init();
-		});
-		
-		// detect and initialize storage driver
-		$.each( $.store.drivers, function()
-		{
-			// skip unavailable drivers
-			if( !$.isFunction( this.available ) || !this.available() )
-				return true; // continue;
-			
-			$.store.driver = this;
-			$.store.driver.init();
-			return false; // break;
-		});
-	},
+	encoders : [],
+	decoders : [],
 	serialize: function( value )
 	{
-		$.each( $.store.encodeOrder, function()
+		var that = this;
+		
+		$.each( this.encoders, function()
 		{
-			var serializer = $.store.serializers[ this + "" ];
+			var serializer = that.serializers[ this + "" ];
 			if( !serializer || !serializer.encode )
 				return true; // continue;
 
@@ -94,9 +135,13 @@ $.extend( $.store, {
 	},
 	unserialize: function( value )
 	{
-		$.each( $.store.decodeOrder, function()
+		var that = this;
+		if( !value )
+			return value;
+		
+		$.each( this.decoders, function()
 		{
-			var serializer = $.store.serializers[ this + "" ];
+			var serializer = that.serializers[ this + "" ];
 			if( !serializer || !serializer.decode )
 				return true; // continue;
 
@@ -156,6 +201,7 @@ $.store.drivers = {
 		element: null,
 		nodeName: 'userdatadriver',
 		scope: 'browser',
+		initialized: false,
 		available: function()
 		{
 			try
@@ -169,11 +215,16 @@ $.store.drivers = {
 		},
 		init: function()
 		{
+			// $.store can only utilize one userData store at a time, thus avoid duplicate initialization
+			if( this.initialized )
+				return;
+				
 			// Create a non-existing element and append it to the root element (html)
 			this.element = document.createElement( this.nodeName );
 			document.documentElement.appendChild( this.element );
 			// Apply userData behavior
 			this.element.addBehavior( "#default#userData" );
+			this.initialized = true;
 		},
 		get: function( key )
 		{
@@ -204,6 +255,7 @@ $.store.drivers = {
 		ident: "$.store.drivers.windowName",
 		scope: 'window',
 		cache: {},
+		encodes: true,
 		available: function()
 		{
 			return true;
@@ -214,13 +266,15 @@ $.store.drivers = {
 		},
 		save: function()
 		{
-			window.name = $.store.serialize( this.cache );
+			window.name = $.store.serializers.json.encode( this.cache );
 		},
 		load: function()
 		{
 			try
 			{
-				this.cache = $.store.unserialize( window.name );
+				this.cache = $.store.serializers.json.decode( window.name + "" );
+				if( typeof this.cache != "object" )
+					this.cache = {};
 			}
 			catch(e)
 			{
@@ -261,24 +315,17 @@ $.store.drivers = {
  * $.store serializers
  **********************************************************************************/
 
-$.store.encodeOrder = [];
-$.store.decodeOrder = [];
-
 $.store.serializers = {
 	
 	'json': {
 		ident: "$.store.serializers.json",
-		init: function()
+		init: function( encoders, decoders )
 		{
-			$.store.encodeOrder.push( "json" );
-			$.store.decodeOrder.push( "json" );
-			// encode to JSON (taken from $.jStorage, MIT License)
-			this.encode = $.toJSON || Object.toJSON || ( window.JSON && ( JSON.encode || JSON.stringify ) );
-			// decode from JSON (taken from $.jStorage, MIT License)
-			this.decode = $.evalJSON || ( window.JSON && ( JSON.decode || JSON.parse ) );
+			encoders.push( "json" );
+			decoders.push( "json" );
 		},
-		encode: $.noop,
-		decode: $.noop
+		encode: JSON.stringify,
+		decode: JSON.parse
 	},
 	
 	// TODO: html serializer
@@ -286,10 +333,10 @@ $.store.serializers = {
 	
 	'xml': {
 		ident: "$.store.serializers.xml",
-		init: function()
+		init: function( encoders, decoders )
 		{
-			$.store.encodeOrder.unshift( "xml" );
-			$.store.decodeOrder.push( "xml" );
+			encoders.unshift( "xml" );
+			decoders.push( "xml" );
 		},
 		
 		// wouldn't be necessary if jQuery exposed this function
@@ -359,9 +406,7 @@ $.store.serializers = {
 			return this.isXML( value.value ) ? value.value : undefined;
 		}
 	}
-}
+};
 
-
-$.store.init();
 
 })(jQuery);

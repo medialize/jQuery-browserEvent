@@ -9,11 +9,17 @@
  *
  */
 
-// TODO: check out https://developer.mozilla.org/en/DOM/window.postMessage
+/*
+ * No, this utility has got nothing in common with window.postMessage() and EventSource
+ * 	http://dev.w3.org/html5/postmsg/
+ * 	http://dev.w3.org/html5/eventsource/
+ */
 
 (function($,undefined){
 
-var browserEvent = {
+var _store = null,
+	_winStore = null,
+	browserEvent = {
 	ident: null,
 	identPattern: /^browserEvent_([0-9]+)$/,
 
@@ -58,10 +64,10 @@ var browserEvent = {
 				if( win == that.ident )
 					return true; // continue;
 			
-				var queue = $.store.get( win ) || [];
+				var queue = _store.get( win ) || [];
 		
 				queue = queue.concat( that.sendQueue );
-				$.store.set( win, queue );
+				_store.set( win, queue );
 			});
 		}
 		
@@ -72,17 +78,17 @@ var browserEvent = {
 	
 	poll: function()
 	{
-		var events = $.store.get( this.ident );
+		var events = _store.get( this.ident );
 		if( events === null || events.length == undefined )
 		{
 			events = [];
-			$.store.set( this.ident, [] );
+			_store.set( this.ident, [] );
 		}
 		
 		// dispatch browser events
 		if( events && events.length )
 		{
-			$.store.set( this.ident, [] );
+			_store.set( this.ident, [] );
 			$.each( events, function()
 			{
 				$( window ).trigger( this.event, [this.data] );
@@ -90,7 +96,7 @@ var browserEvent = {
 		}
 		
 		// load registered windows
-		var registered = $.store.get( 'browserEventRegister' ) || [],
+		var registered = _store.get( 'browserEventRegister' ) || [],
 			registeredHash = registered.join( '#' );
 		
 		// update registered windows
@@ -104,7 +110,7 @@ var browserEvent = {
 
 	register: function()
 	{
-		var register = $.store( 'browserEventRegister' );
+		var register = _store( 'browserEventRegister' );
 		if( !register )
 			register = [];
 
@@ -133,7 +139,7 @@ var browserEvent = {
 			register.push( this.ident );
 			register[ this.ident ] = 1;
 		
-			$.store( 'browserEventRegister', register );
+			_store( 'browserEventRegister', register );
 		}
 		
 		// check that the register is still available
@@ -162,20 +168,24 @@ var browserEvent = {
 		$.browserEvent.ready.call( $.browserEvent );
 	},
 
-	init: function()
+	init: function( storage, winStorage )
 	{
 		// abort if storage is incapable of inter-window communication
-		if( !$.store || $.store.driver.scope != "browser" )
+		if( !storage || storage.driver.scope != "browser" )
 			return;
+		
+		_store = storage;
+		_winStore = winStorage;
 		
 		// identify this window
 		if( !this.ident )
 		{
 			// save ident in window.name to keep accross document changes
-			if( !window.name.match( this.identPattern ) )
-				window.name = 'browserEvent_' + Math.floor((new Date).getTime() + Math.random() * 10000 );
+			this.ident = _winStore.get( 'browserEventIdent' );
+			if( !this.ident.match( this.identPattern ) )
+				this.ident = 'browserEvent_' + Math.floor((new Date).getTime() + Math.random() * 10000 );
 			
-			this.ident = window.name;
+			_winStore.set( 'browserEventIdent', this.ident );
 		}
 		
 		// register this window
