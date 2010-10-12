@@ -30,6 +30,12 @@ var _store = null,
 	pollInterval: 200,
 	_pollInterval: null,
 	
+	// locking, some sort of
+	lock: false,
+	lockTimeout: 100,
+	lockInterval: 10,
+	_lockInterval: null,
+	
 	// registry of other windows
 	registry: [],
 	registryHash: null,
@@ -56,17 +62,76 @@ var _store = null,
 	trigger: function( event, data )
 	{
 		this.queue.push( { event:event, data:data } );
-		if( !this.sending )
-			this.send();
+	},
+
+	
+	requestLock: function( callback )
+	{
+		try
+		{
+			if( this._lockInterval )
+				window.clearTimeout( this._lockInterval );
+		}
+		catch(e){}
+		
+		var that = this,
+			lock = _store.get( 'browserEventLock' ),
+			now = (new Date()).getTime();
+		
+		// retry if there's a lock that has not timed out
+		if( lock && lock > now - that.lockTimeout )
+		{
+			this._lockInterval = window.setTimeout( function()
+			{
+				that.requestLock.call( that ); 
+			}, this.lockInterval );
+		}
+		
+		_store.set( 'browserEventLock', now );
+		this.lock = true;
+		callback.call( this );
 	},
 	
+	releaseLock: function()
+	{
+		if( !this.lock )
+			return;
+		
+		_store.del( 'browserEventLock' );
+		this.lock = true;
+	},
+
+	poll: function()
+	{
+		try
+		{
+			if( this._pollInterval )
+				window.clearTimeout( this._pollInterval );
+		}
+		catch(e){}
+		
+		var that = this;
+		
+		// TODO: acquire lock
+
+		this.dispatchEvents();
+		this.updateRegistry();
+		this.send();
+
+		this.releaseLock();
+		
+		// renew poll
+		this._pollInterval = window.setTimeout( function()
+		{
+			that.requestLock.call( that, that.poll ); 
+		}, this.pollInterval );
+	},
+		
 	send: function()
 	{
-		// TODO: race-condition-locking
-		
 		// send queue
 		var that = this;
-		if( this.registry )
+		if( this.registry && this.queue.length )
 		{
 			$.each( this.registry, function( win, time )
 			{
@@ -84,7 +149,7 @@ var _store = null,
 		this.sending = false;
 	},
 	
-	poll: function()
+	dispatchEvents: function()
 	{
 		var events = _store.get( this.ident );
 		
@@ -104,16 +169,20 @@ var _store = null,
 				$( window ).trigger( this.event, [this.data] );
 			});
 		}
-		
+	},
+	
+	updateRegistry: function()
+	{
 		// load windows registry
-		var registry = _store.get( 'browserEventRegistry' ) || {},
+		var that = this,
+			registry = _store.get( 'browserEventRegistry' ) || {},
 			registryHash = [],
 			now = (new Date()).getTime(),
 			altered = false;
 		
 		$.each( registry, function( win, time )
 		{
-			if( !win || time < now - this.registryTimeout )
+			if( !win || time < now - that.registryTimeout )
 			{
 				altered = true;
 				
@@ -130,9 +199,10 @@ var _store = null,
 			registryHash.push( win );
 		});
 		
-		if( altered )
-			_store.set( 'browserEventRegistry', registry );
+		registry[ this.ident ] = now;
+		_store.set( 'browserEventRegistry', registry );
 	
+		registryHash.sort()
 		registryHash = registryHash.join( '#' );
 		
 		// update windows registry
@@ -146,61 +216,22 @@ var _store = null,
 
 	register: function()
 	{
-		var that = this,
-			registry = _store.get( 'browserEventRegistry' ) || {},
-			registered = false;
+		var registry = _store.get( 'browserEventRegistry' ) || {};
 
-		$.each( registry, function( win, value )
-		{
-			if( win == that.ident )
-			{
-				registered = true;
-				return false; // break;
-			}
-		});
+		this.registerChecksDone = 0;
+		registry[ this.ident ] = (new Date()).getTime();
+		_store.set( 'browserEventRegistry', registry );
 		
-		if( registered )
-		{
-			// race-condition workaround
-			if( this.registerChecksDone++ > this.registerChecks )
-			{
-				this.ready();
-				return;
-			}
-		}
-		else
-		{
-			this.registerChecksDone = 0;
-			registry[ this.ident ] = (new Date()).getTime();
-		
-			_store.set( 'browserEventRegistry', registry );
-		}
-		
-		// check that the register is still available
-		// vary interval because of race-conditions due to missing locking
-		var that = this;
-		window.setTimeout( function()
-		{
-			that.register.call( that );
-		}, Math.ceil( Math.random() * 100 ) );
+		this.releaseLock();
+		this.ready();
 	},
 
 	ready: function()
 	{
-		// run poller
-		this.poll();
-		
-		// send events that queued up during init
-		if( this.queue.length )
-			this.send();
-		else
-			this.sending = false;
-
-		// activate poller
-		var that = this;
-		this._pollInterval = window.setInterval( function(){ that.poll.call( that ); }, this.pollInterval );
-		
 		$.browserEvent.ready.call( $.browserEvent );
+		
+		// run poller
+		this.requestLock( this.poll );
 	},
 
 	init: function( storage, winStorage )
@@ -224,7 +255,7 @@ var _store = null,
 		}
 
 		// register this window
-		this.register();
+		this.requestLock( this.register );
 	}
 };
 
