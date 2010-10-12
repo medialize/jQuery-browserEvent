@@ -15,6 +15,8 @@
  * 	http://dev.w3.org/html5/eventsource/
  */
 
+// TODO: registry must be cleaned after a window has not updated itself...
+
 (function($,undefined){
 
 var _store = null,
@@ -110,7 +112,7 @@ var _store = null,
 
 	register: function()
 	{
-		var register = _store( 'browserEventRegister' );
+		var register = _store.get( 'browserEventRegister' );
 		if( !register )
 			register = [];
 
@@ -139,7 +141,7 @@ var _store = null,
 			register.push( this.ident );
 			register[ this.ident ] = 1;
 		
-			_store( 'browserEventRegister', register );
+			_store.set( 'browserEventRegister', register );
 		}
 		
 		// check that the register is still available
@@ -176,18 +178,18 @@ var _store = null,
 		
 		_store = storage;
 		_winStore = winStorage;
-		
+
 		// identify this window
 		if( !this.ident )
 		{
 			// save ident in window.name to keep accross document changes
 			this.ident = _winStore.get( 'browserEventIdent' );
-			if( !this.ident.match( this.identPattern ) )
+			if( !this.ident || !this.ident.match( this.identPattern ) )
 				this.ident = 'browserEvent_' + Math.floor((new Date).getTime() + Math.random() * 10000 );
 			
 			_winStore.set( 'browserEventIdent', this.ident );
 		}
-		
+
 		// register this window
 		this.register();
 	}
@@ -203,8 +205,8 @@ $.browserEvent = function( event, callback )
 
 $.extend( $.browserEvent, {
 	ready: $.noop,
-	init: function(){ 
-		browserEvent.init(); 
+	init: function( storage, winStorage ){ 
+		browserEvent.init( storage, winStorage ); 
 		return $.browserEvent;
 	},
 	bind: function( event, callback )

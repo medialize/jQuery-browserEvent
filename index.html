@@ -24,6 +24,9 @@
 		
 		var ident = null;
 		
+		$.storage = new $.store();
+		$.storageWindow = new $.store( 'windowName' );
+
 		function initialize()
 		{
 			$.browserEvent.ready = function()
