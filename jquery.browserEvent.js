@@ -22,17 +22,23 @@
 var _store = null,
 	_winStore = null,
 	browserEvent = {
+	// window identification in registry
 	ident: null,
 	identPattern: /^browserEvent_([0-9]+)$/,
 
+	// checking events for this window
 	pollInterval: 200,
 	_pollInterval: null,
 	
-	reqistered: [],
-	reqisteredHash: null,
-	sendQueue: [],
-	flushingQueue: true, // wait for ready
-
+	// registry of other windows
+	registry: [],
+	registryHash: null,
+	
+	// events to send to other windows
+	queue: [],
+	sending: true, // wait for ready
+	
+	// race-condition hack to inexstent locking problem
 	registerChecks: 3,
 	registerChecksDone: 0,
 	
@@ -48,34 +54,34 @@ var _store = null,
 
 	trigger: function( event, data )
 	{
-		this.sendQueue.push( { event:event, data:data } );
-		if( !this.flushingQueue )
-			this.flushQueue();
+		this.queue.push( { event:event, data:data } );
+		if( !this.sending )
+			this.send();
 	},
 	
-	flushQueue: function()
+	send: function()
 	{
 		// TODO: acquire lock
 		
 		// send queue
 		var that = this;
-		if( this.registered && this.registered.length )
+		if( this.registry && this.registry.length )
 		{
-			$.each( this.registered, function( i, win )
+			$.each( this.registry, function( i, win )
 			{
 				if( win == that.ident )
 					return true; // continue;
 			
-				var queue = _store.get( win ) || [];
+				var windowQueue = _store.get( win ) || [];
 		
-				queue = queue.concat( that.sendQueue );
-				_store.set( win, queue );
+				windowQueue = queue.concat( that.queue );
+				_store.set( win, windowQueue );
 			});
 		}
 		
 		// clean queue
-		this.sendQueue = [];
-		this.flushingQueue = false;
+		this.queue = [];
+		this.sending = false;
 	},
 	
 	poll: function()
@@ -97,37 +103,37 @@ var _store = null,
 			});
 		}
 		
-		// load registered windows
-		var registered = _store.get( 'browserEventRegister' ) || [],
-			registeredHash = registered.join( '#' );
+		// load windows registry
+		var registry = _store.get( 'browserEventRegistry' ) || [],
+			registryHash = registry.join( '#' );
 		
-		// update registered windows
-		if( registeredHash != this.registeredHash )
+		// update windows registry
+		if( registryHash != this.registryHash )
 		{
-			this.registered = registered;
-			this.registeredHash = registeredHash;
-			$( window ).trigger( 'browserWindows', [this.registered] );
+			this.registry = registry;
+			this.registryHash = registryHash;
+			$( window ).trigger( 'browserWindows', [this.registry] );
 		}
 	},
 
 	register: function()
 	{
-		var register = _store.get( 'browserEventRegister' );
+		var register = _store.get( 'browserEventRegistry' );
 		if( !register )
 			register = [];
 
 		var that = this,
-			registered = false;
+			registry = false;
 
 		$.each( register, function( key, value ){
 			if( value == that.ident )
 			{
-				registered = true;
+				registry = true;
 				return false; // break;
 			}
 		});
 		
-		if( registered )
+		if( registry )
 		{
 			if( this.registerChecksDone++ > this.registerChecks )
 			{
@@ -141,7 +147,7 @@ var _store = null,
 			register.push( this.ident );
 			register[ this.ident ] = 1;
 		
-			_store.set( 'browserEventRegister', register );
+			_store.set( 'browserEventRegistry', register );
 		}
 		
 		// check that the register is still available
@@ -158,10 +164,10 @@ var _store = null,
 		this.poll();
 		
 		// send events that queued up during init
-		if( this.sendQueue.length )
-			this.flushQueue();
+		if( this.queue.length )
+			this.send();
 		else
-			this.flushingQueue = false;
+			this.sending = false;
 
 		// activate poller
 		var that = this;
