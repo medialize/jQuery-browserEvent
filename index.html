@@ -40,7 +40,9 @@
 				log( 'interWindowMessage-event received: ' + data, 'event' );
 			}).bind( 'browserWindows', function( e, data )
 			{
-				log( 'Registered Windows Changed: ' + data.join( ', ' ), 'event' );
+				var windows = [];
+				$.each( data, function( win, time ){ windows.push( win ); } );
+				log( 'Registered Windows Changed: ' + windows.join( ', ' ), 'event' );
 			});
 			
 			$.browserEvent.init( $.storage, $.storageWindow );

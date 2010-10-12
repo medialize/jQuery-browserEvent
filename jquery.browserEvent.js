@@ -15,7 +15,7 @@
  * 	http://dev.w3.org/html5/eventsource/
  */
 
-// TODO: registry must be cleaned after a window has not updated itself...
+// TODO: some sort of locking to avoid race-conditions in registry- and event-queue read/writes
 
 (function($,undefined){
 
@@ -33,6 +33,7 @@ var _store = null,
 	// registry of other windows
 	registry: [],
 	registryHash: null,
+	registryTimeout: 600,
 	
 	// events to send to other windows
 	queue: [],
@@ -61,21 +62,20 @@ var _store = null,
 	
 	send: function()
 	{
-		// TODO: acquire lock
+		// TODO: race-condition-locking
 		
 		// send queue
 		var that = this;
-		if( this.registry && this.registry.length )
+		if( this.registry )
 		{
-			$.each( this.registry, function( i, win )
+			$.each( this.registry, function( win, time )
 			{
 				if( win == that.ident )
 					return true; // continue;
 			
-				var windowQueue = _store.get( win ) || [];
-		
-				windowQueue = queue.concat( that.queue );
-				_store.set( win, windowQueue );
+				var queue = _store.get( win ) || [];
+				queue = queue.concat( that.queue );
+				_store.set( win, queue );
 			});
 		}
 		
@@ -87,6 +87,8 @@ var _store = null,
 	poll: function()
 	{
 		var events = _store.get( this.ident );
+		
+		// make sure events is an array
 		if( events === null || events.length == undefined )
 		{
 			events = [];
@@ -104,8 +106,34 @@ var _store = null,
 		}
 		
 		// load windows registry
-		var registry = _store.get( 'browserEventRegistry' ) || [],
-			registryHash = registry.join( '#' );
+		var registry = _store.get( 'browserEventRegistry' ) || {},
+			registryHash = [],
+			now = (new Date()).getTime(),
+			altered = false;
+		
+		$.each( registry, function( win, time )
+		{
+			if( !win || time < now - this.registryTimeout )
+			{
+				altered = true;
+				
+				try
+				{
+					delete registry[ win ];
+				}
+				catch( e )
+				{
+					registry[ win ] = undefined;
+				}
+			}
+			
+			registryHash.push( win );
+		});
+		
+		if( altered )
+			_store.set( 'browserEventRegistry', registry );
+	
+		registryHash = registryHash.join( '#' );
 		
 		// update windows registry
 		if( registryHash != this.registryHash )
@@ -118,23 +146,22 @@ var _store = null,
 
 	register: function()
 	{
-		var register = _store.get( 'browserEventRegistry' );
-		if( !register )
-			register = [];
-
 		var that = this,
-			registry = false;
+			registry = _store.get( 'browserEventRegistry' ) || {},
+			registered = false;
 
-		$.each( register, function( key, value ){
-			if( value == that.ident )
+		$.each( registry, function( win, value )
+		{
+			if( win == that.ident )
 			{
-				registry = true;
+				registered = true;
 				return false; // break;
 			}
 		});
 		
-		if( registry )
+		if( registered )
 		{
+			// race-condition workaround
 			if( this.registerChecksDone++ > this.registerChecks )
 			{
 				this.ready();
@@ -144,13 +171,13 @@ var _store = null,
 		else
 		{
 			this.registerChecksDone = 0;
-			register.push( this.ident );
-			register[ this.ident ] = 1;
+			registry[ this.ident ] = (new Date()).getTime();
 		
-			_store.set( 'browserEventRegistry', register );
+			_store.set( 'browserEventRegistry', registry );
 		}
 		
 		// check that the register is still available
+		// vary interval because of race-conditions due to missing locking
 		var that = this;
 		window.setTimeout( function()
 		{
@@ -200,6 +227,10 @@ var _store = null,
 		this.register();
 	}
 };
+
+/**********************************************************************************
+ * $.browserEvemt API
+ **********************************************************************************/
 
 $.browserEvent = function( event, callback )
 {
