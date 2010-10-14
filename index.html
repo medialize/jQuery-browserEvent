@@ -38,6 +38,7 @@
 			$.browserEvent.bind( 'interWindowMessage', function( e, data )
 			{
 				log( 'interWindowMessage-event received: ' + data, 'event' );
+				window.focus();
 			}).bind( 'browserWindows', function( e, data )
 			{
 				var windows = [];
