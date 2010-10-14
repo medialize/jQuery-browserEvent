@@ -4,9 +4,9 @@
 	<meta charset="utf-8" />
 	<meta http-equiv="content-type" content="text/html; charset=utf-8" />
 
-	<title>$.browserEvent() jQuery plugin</title>
-	<meta name="title" content="windowSync() jQuery plugin" />
-	<meta name="description" content="Keeping data in multiple browser windows in sync." />
+	<title>$.browserEvent() - communicating between windows</title>
+	<meta name="title" content="$.browserEvent() - communicating between windows" />
+	<meta name="description" content="$.browserEvent enables communication accross several windows by sending events back and forth." />
 	
 	<link rel="stylesheet" type="text/css" href="screen.css" />
 	<script type="text/javascript" src="json2.js"></script>
@@ -88,21 +88,62 @@
 </head>
 <body>
 	
-	<h1>$.browserEvent() Demo</h1>
-	<div id="wrapper">
-	<div id="windows">
-		<h2>Registered Windows</h2>
-		<ul>
-			<li>Initializing…</li>
-		</ul>
-	</div>
+	<h1><code>$.browserEvent()</code> <abbr title="Proof Of Concept">POC</abbr></h1>
 	
-	<div id="messages">
-		<h2>Messages</h2>
-		<ul>
-			<li class="info">Initializing…</li>
-		</ul>
-	</div>
+	<hr />
+	
+	<div id="wrapper">
+		<div id="windows">
+			<h2>Registered Windows</h2>
+			<ul>
+				<li>Initializing…</li>
+			</ul>
+		</div>
+	
+		<div id="messages">
+			<h2>Messages</h2>
+			<ul>
+				<li class="info">Initializing…</li>
+				<li class="info" style="background-color: #FFDDDD">
+					<strong>Note:</strong> Open this page in several windows. You'll notice they're all being registered in the right box.
+					You can send a specific window a message by clicking on its entry in the windows-box. 
+					<em>broadcast</em> will send the message to all windows.
+				</li>
+			</ul>
+		</div>
+	
+		<hr />
+
+	
+		<h2>What this is</h2>
+		<p>
+			Since tabbed browsing took over, many people have begun to open the same website in multiple tabs.
+			This is especially true for web-applications and tools you work with every day (e.g. PhpMyAdmin, issue trackers, wikis, …).
+			Often enough you do something in one tab, switch to another and have to reload, because that modified item of the first tab
+			was not modified in the second tab as well. Duh!
+		</p>
+		<p>
+			<code>$.browserEvent()</code> aims to fill the gap in communicating in between windows. It offers an API with which you cann easily send
+			events to other windows displaying the same website. <code>$.browserEvent()</code> accomplishes this by utilizing the <code>localStorage</code> 
+			(or some fallback). Even some sort of locking mechanism has been implemented on top of <code>localStorage</code> to minize race conditions.
+		</p>
+	
+		<h2>Why is this only a Proof Of Concept</h2>
+		<p>
+			Currently a lot of CPU power goes down the drain. Mostly because of frequent polling and massive JSON de/serialization. 
+			To make <code>$.browserEvent()</code> succeed in the field, some improvements have to made on this end. With 10 registered
+			windows, Firefox 3.6 eats 20% of my CPU.
+		</p>
+	
+		<h2>How you can help</h2>
+		<p>
+			Point me in the right direction(s) to reduce CPU consumption.
+		</p>
+		
+		<h2>Will this be OpenSource?</h2>
+		<p>
+			Yes. Once it's done, I'll release it under the MIT license.
+		</p>
 	</div>
 </body>
 </html>

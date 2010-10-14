@@ -1,5 +1,6 @@
 body { 
 	background-color: #CCCCCC;
+	color: #666666;
 	font-family: Verdana; 
 	font-size: 12px; 
 }
@@ -47,7 +48,7 @@ h2 { font-size: 14px; margin:0 0 5px 3px; padding:0; }
 
 #messages {
 	max-width:620px;
-	max-height:400px;
+	max-height:300px;
 	overflow:auto;
 	font-family: Verdana;
 	font-size: 12px;
