@@ -14,70 +14,95 @@
 	<script type="text/javascript" src="jquery.store.js"></script>
 	<script type="text/javascript" src="jquery.browserEvent.js"></script>
 	<script type="text/javascript">
-		
-		function log( m, className )
-		{
-			var t = $( '<p>'+ m +'</p>' ).insertAfter( $(document.body).children().first() );
-			if( className )
-				t.addClass( className );
-		}
-		
-		var ident = null;
-		
-		$.storage = new $.store();
-		$.storageWindow = new $.store( 'windowName' );
+		(function($,undefined){
 
-		function initialize()
-		{
-			$.browserEvent.ready = function()
-			{
-				ident = this.ident();
-				log( 'Initialized $.browserEvent with ident ' + ident, 'info' );
+			// initialize storage
+			$.storage = new $.store();
+			$.storageWindow = new $.store( 'windowName' );
+			
+			var $windows = null,
+				$windowList = null,
+				$messages = null,
+				$messageList = null,
+				shorten = function( win ){ return 'win' + win.substr( 13 ) };
+			
+			var handle = {
+				windowUpdate: function( e, data, ident )
+				{
+					$windowList.empty();
+					$.each( data, function( win, time )
+					{
+						var $t = $( '<li></li>' )
+							.text( shorten(win) )
+							.appendTo( $windowList )
+							.data( 'be', win )
+							.bind( 'click', handle.sendMessage );
+						
+						if( win === ident )
+							$t.addClass( 'self' );
+					});
+					
+					$( '<li class="info">broadcast</li>' ).appendTo( $windowList ).bind( 'click', handle.sendMessage );
+				},
+				message: function( e, data, origin )
+				{
+					var $t = $( '<li></li>' ).prependTo( $messageList );
+					$( '<span class="ident"></span>' ).text( origin === "self" ? 'I sent' : shorten(origin) ).appendTo( $t );
+					$( '<span class="message"></span>' ).text( data ).appendTo( $t );
+
+					if( origin == 'self' )
+						$t.addClass( 'self' );
+
+					$( '<div class="clear"></div>' ).appendTo( $t );
+				},
+				ready: function()
+				{
+					$( '<li class="info">ready for business…</li>' ).prependTo( $messageList );
+				},
+				
+				sendMessage: function()
+				{
+					var ident = $(this).data( 'be' );
+					$.browserEvent.trigger( 'message', 'Hello, how are you?', ident );
+				}
 			};
 			
-			$.browserEvent.bind( 'interWindowMessage', function( e, data )
+			$(function()
 			{
-				log( 'interWindowMessage-event received: ' + data, 'event' );
-				window.focus();
-			}).bind( 'browserWindows', function( e, data )
-			{
-				var windows = [];
-				$.each( data, function( win, time ){ windows.push( win ); } );
-				log( 'Registered Windows Changed: ' + windows.join( ', ' ), 'event' );
+				$windows = $( '#windows' );
+				$windowList = $( '#windows > ul' );
+				
+				$messages = $( '#messages' );
+				$messageList = $( '#messages > ul' );
+				$.browserEvent.ready = handle.ready;
+				$.browserEvent
+					.bind( 'browserWindows', handle.windowUpdate )
+					.bind( 'message', handle.message )
+					.init( $.storage, $.storageWindow );
+			
 			});
 			
-			$.browserEvent.init( $.storage, $.storageWindow );
-			
-			
-			$.browserEvent.bind( 'someLaterEvent', function( e, data )
-			{
-				log( 'foobar' );
-			});
-		}
+		})(jQuery);
 		
-		function send()
-		{
-			$.browserEvent.trigger( 'interWindowMessage', 'Hello, I am '+ ident +', how are you?' );
-		}
 	</script>
 </head>
 <body>
-	<div>
-		<button onclick="initialize(); return false;" type="button">init</button>
-		<button onclick="send(); return false;" type="button">send</button>
+	
+	<h1>$.browserEvent() Demo</h1>
+	<div id="wrapper">
+	<div id="windows">
+		<h2>Registered Windows</h2>
+		<ul>
+			<li>Initializing…</li>
+		</ul>
 	</div>
-	<script type="text/javascript">
-		document.write( '<p>Initialized <code>$.storage</code> with driver <code>' + $.storage.driver.ident + '</code></p>' );
-	</script>
 	
-	
-	<h1>how to test:</h1>
-	
-	<p class="info">
-		Open this page in two browser windows. Align the windows so you can see them simultaneously.
-		click [init] in both pages. now click [send] in one window and watch what happens in the other.
-	</p>
-	<p class="info">Tested with Firefox, Safari, Chrome, IE8 and yes, even IE7</p>
-	<p class="info">There's a separate test-page for <a href="store.html">$.store</a></p>
+	<div id="messages">
+		<h2>Messages</h2>
+		<ul>
+			<li class="info">Initializing…</li>
+		</ul>
+	</div>
+	</div>
 </body>
 </html>

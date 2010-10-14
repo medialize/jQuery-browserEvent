@@ -1,3 +1,91 @@
-p { color: red; }
-p.info { color: #555555; }
+body { 
+	background-color: #CCCCCC;
+	font-family: Verdana; 
+	font-size: 12px; 
+}
+h1 { font-size: 16px; margin:0 0 5px 3px; padding:0; }
+h2 { font-size: 14px; margin:0 0 5px 3px; padding:0; }
 
+#wrapper {
+	width: 850px;
+}
+
+/**********************************************************************
+ * Window Listing
+ **********************************************************************/
+
+#windows {
+	/*
+	position:absolute;
+	top: 10px;
+	right: 10px;
+	*/
+	max-width:250px;
+	float:right;
+	font-size: 12px;
+	color: #666666;
+}
+
+#windows > ul {
+	margin: 0;
+	padding: 0;
+	list-style-type: none;
+}
+
+#windows > ul > li {
+	margin: 2px;
+	padding: 4px;
+	border: 1px solid #999999;
+	background-color: #DFDFDF;
+	list-style-type: none;
+	cursor:pointer;
+}
+
+/**********************************************************************
+ * Window Listing
+ **********************************************************************/
+
+#messages {
+	max-width:620px;
+	max-height:400px;
+	overflow:auto;
+	font-family: Verdana;
+	font-size: 12px;
+	color: #666666;
+}
+
+#messages > ul {
+	margin: 0;
+	padding: 0;
+	list-style-type: none;
+}
+
+#messages > ul > li {
+	margin: 2px;
+	padding: 4px;
+	border: 1px solid #999999;
+	background-color: #FFFFFF;
+	list-style-type: none;
+}
+
+.ident {
+	width: 180px;
+	display: inline-block;
+	font-style:italic;
+}
+.message {
+	
+}
+
+.self {
+	color: #333399;
+	background-color: #CCCCFF;
+}
+
+.info {
+	font-style: italic;
+}
+
+.clear { 
+	clear:both; 
+}

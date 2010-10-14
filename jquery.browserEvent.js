@@ -43,6 +43,8 @@ var _store = null,
 	
 	// events to send to other windows
 	queue: [],
+	queues: {},
+	queued: false,
 	sending: true, // wait for ready
 	
 	// race-condition hack to inexstent locking problem
@@ -59,9 +61,31 @@ var _store = null,
 		$( window ).unbind( event );
 	},
 
-	trigger: function( event, data )
+	trigger: function( event, data, windows )
 	{
-		this.queue.push( { event:event, data:data } );
+		this.queued = true;
+		var t = { event:event, data:data, origin:this.ident };
+
+		if( !windows || !windows.length )
+		{
+			this.queue.push( t );
+		}
+		else
+		{
+			var that = this;
+			if( typeof windows === 'string' )
+				windows = [ windows ];
+			
+			$.each( windows, function( i, win )
+			{
+				if( !that.queues[ win ] )
+					that.queues[ win ] = [];
+				
+				that.queues[ win ].push( t );
+			});
+		}
+		
+		$( window ).trigger( event, [ data, 'self', windows ] );
 	},
 
 	
@@ -131,21 +155,24 @@ var _store = null,
 	{
 		// send queue
 		var that = this;
-		if( this.registry && this.queue.length )
+		if( this.registry && this.queued)
 		{
 			$.each( this.registry, function( win, time )
 			{
+				// don't send to self
 				if( win == that.ident )
 					return true; // continue;
 			
 				var queue = _store.get( win ) || [];
-				queue = queue.concat( that.queue );
+				queue = queue.concat( that.queue, that.queues[ win ] || [] );
 				_store.set( win, queue );
 			});
 		}
 		
 		// clean queue
 		this.queue = [];
+		this.queues = {};
+		this.queued = false;
 		this.sending = false;
 	},
 	
@@ -166,7 +193,7 @@ var _store = null,
 			_store.set( this.ident, [] );
 			$.each( events, function()
 			{
-				$( window ).trigger( this.event, [this.data] );
+				$( window ).trigger( this.event, [ this.data, this.origin ] );
 			});
 		}
 	},
@@ -210,7 +237,7 @@ var _store = null,
 		{
 			this.registry = registry;
 			this.registryHash = registryHash;
-			$( window ).trigger( 'browserWindows', [this.registry] );
+			$( window ).trigger( 'browserWindows', [ this.registry, this.ident ] );
 		}
 	},
 
@@ -287,9 +314,9 @@ $.extend( $.browserEvent, {
 		browserEvent.unbind( event ); 
 		return $.browserEvent;
 	},
-	trigger: function( event, data )
+	trigger: function( event, data, windows )
 	{ 
-		browserEvent.trigger( event, data ); 
+		browserEvent.trigger( event, data, windows ); 
 		return $.browserEvent;
 	},
 	ident: function()
